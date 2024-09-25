@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
+use bevy_editor_pls::prelude::*;
 
 /// Constants for controlling the camera sensitivity and limits.
 const ROTATION_SENSITIVITY: f32 = 0.005;
@@ -8,8 +9,12 @@ const ZOOM_SENSITIVITY: f32 = 0.5;
 const MIN_DISTANCE: f32 = 1.0;
 const MAX_DISTANCE: f32 = 100.0;
 
+const INERTIA_ON: bool = true;
+const INERTIA_DECREMENT_SPEED: f32 = 0.005;
+
 /// Component to store the camera's control state.
-#[derive(Component)]
+#[derive(Component, Default, Reflect)]
+#[reflect(Component)]
 struct CameraController {
     distance: f32,
     yaw: f32,
@@ -17,13 +22,60 @@ struct CameraController {
     point_of_view: Vec3,
     is_rotating: bool,
     is_panning: bool,
+    rotating_inertia: InertiaRotation,
+}
+
+impl CameraController {
+  fn rotate(&mut self, delta: Vec2) {
+    self.yaw -= delta.x * ROTATION_SENSITIVITY;
+    self.pitch -= delta.y * ROTATION_SENSITIVITY;
+    self.pitch = self
+        .pitch
+        .clamp(-89.9_f32.to_radians(), 89.9_f32.to_radians());
+  }
+}
+
+#[derive(Default, Reflect)]
+struct InertiaRotation {
+    speed: f32,
+    direction: Vec2,
+    /// neccessary to count enertia affter action finish
+    start_second: f32,
+    start_yaw: f32,
+    start_pitch: f32,
+}
+
+impl InertiaRotation {
+  fn is_present(&self) -> bool {
+    self.speed != 0.
+  }
+
+  fn set_start(&mut self, second: f32, yaw: f32, pitch: f32) {
+    self.start_second = second;
+    self.start_yaw = yaw;
+    self.start_pitch = pitch;
+  }
+
+  fn deplete(&mut self) {
+    *self = Self::default();
+  }
+
+  fn decrement(&mut self) {
+    self.speed -= INERTIA_DECREMENT_SPEED;
+
+    if self.speed < 0. {
+        self.speed = 0.;
+    }
+  }
 }
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .register_type::<CameraController>()
         .add_systems(Startup, setup)
         .add_systems(Update, update_camera_controller)
+        .add_plugins(EditorPlugin::default())
         .run();
 }
 
@@ -46,6 +98,7 @@ fn setup(
             point_of_view: Vec3::ZERO,
             is_rotating: false,
             is_panning: false,
+            ..default()
         },
     ));
 
@@ -66,6 +119,7 @@ fn update_camera_controller(
     mut mouse_wheel_events: EventReader<MouseWheel>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     mut query: Query<(&mut CameraController, &mut Transform)>,
+    time: Res<Time>,
 ) {
     for (mut controller, mut transform) in query.iter_mut() {
         // Handle zoom with mouse wheel.
@@ -84,13 +138,39 @@ fn update_camera_controller(
             delta += event.delta;
         }
 
+        if INERTIA_ON { 
+          if mouse_button_input.just_pressed(MouseButton::Right) {
+            controller.rotating_inertia.deplete();
+            let seconds = time.elapsed().as_secs_f32();
+            let yew = controller.yaw;
+            let pitch = controller.pitch;
+            controller.rotating_inertia.set_start(seconds, yew, pitch);
+          }
+          if mouse_button_input.just_released(MouseButton::Right) {
+            let seconds = time.elapsed().as_secs_f32();
+
+             // Calculate the difference in yaw and pitch
+             let delta_yaw = controller.yaw - controller.rotating_inertia.start_yaw;
+             let delta_pitch = controller.pitch - controller.rotating_inertia.start_pitch;
+
+             // Calculate the rotated distance (Euclidean distance between two angles)
+             let rotated_distance = (delta_yaw.powi(2) + delta_pitch.powi(2)).sqrt();
+
+             controller.rotating_inertia.speed =
+                 rotated_distance / controller.rotating_inertia.start_second;
+
+             controller.rotating_inertia.direction = delta;
+          }
+          if controller.rotating_inertia.is_present() {
+            let delta = controller.rotating_inertia.direction;
+            controller.rotate(delta);
+            controller.rotating_inertia.decrement();
+          }
+        }
+
         // Rotate the camera around the point of view.
         if controller.is_rotating {
-            controller.yaw -= delta.x * ROTATION_SENSITIVITY;
-            controller.pitch -= delta.y * ROTATION_SENSITIVITY;
-            controller.pitch = controller
-                .pitch
-                .clamp(-89.9_f32.to_radians(), 89.9_f32.to_radians());
+            controller.rotate(delta);
         }
 
         // Pan the point of view.
