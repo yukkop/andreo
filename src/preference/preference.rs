@@ -10,7 +10,7 @@ use bevy::{
     app::{App, Last, Plugin, PostStartup},
     ecs::{
         event::{Event, EventReader},
-        system::{Commands, Res, ResMut, Resource},
+        system::{Commands, Res,  Resource},
     },
     prelude::{Deref, DerefMut},
 };
