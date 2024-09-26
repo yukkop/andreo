@@ -1,4 +1,4 @@
-use andreo::{core::LocationPlugin, CM};
+use andreo::{core::LocationPlugin, preference::PreferencesPlugin, CM};
 use bevy::{prelude::*, render::camera::CameraPlugin};
 use bevy_editor_pls::prelude::*;
 
@@ -9,6 +9,7 @@ fn mc(multiplier: f32) -> f32 {
 fn main() {
     App::new()
       .add_plugins(DefaultPlugins)
+      .add_plugins(PreferencesPlugin)
       .add_plugins(LocationPlugin)
       .add_plugins(EditorPlugin::default())
       .add_systems(Startup, (setup, init_plan))

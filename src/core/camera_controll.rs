@@ -1,12 +1,15 @@
-use bevy::prelude::*;
+use bevy::{log, prelude::*};
 use bevy::input::mouse::{MouseMotion, MouseWheel};
+
+use crate::check_zero_warn;
+use crate::preference::{ApplyPreferencesEvent, Preferences};
 
 /// Constants for controlling the camera sensitivity and limits.
 const ROTATION_SENSITIVITY: f32 = 0.005;
 const PAN_SENSITIVITY: f32 = 0.01;
 const ZOOM_SENSITIVITY: f32 = 0.5;
 const MIN_DISTANCE: f32 = 1.0;
-const MAX_DISTANCE: f32 = 100.0;
+const MAX_DISTANCE: f32 = 150.0;
 
 const INERTIA_ON: bool = true;
 const INERTIA_DECREMENT_SPEED: f32 = 0.02;
@@ -28,9 +31,9 @@ pub struct CameraController {
 }
 
 impl CameraController {
-  fn rotate(&mut self, delta: Vec2) {
-    self.yaw -= delta.x * ROTATION_SENSITIVITY;
-    self.pitch -= delta.y * ROTATION_SENSITIVITY;
+  fn rotate(&mut self, delta: Vec2, sensitivity: f32) {
+    self.yaw -= delta.x * sensitivity;
+    self.pitch -= delta.y * sensitivity;
     self.pitch = self
         .pitch
         .clamp(-89.9_f32.to_radians(), 89.9_f32.to_radians());
@@ -64,8 +67,8 @@ impl InertiaRotation {
     *self = Self::default();
   }
 
-  fn decrement(&mut self) {
-    self.speed -= INERTIA_DECREMENT_SPEED;
+  fn decrement(&mut self, decrement_speed: f32) {
+    self.speed -= decrement_speed;
 
     if self.speed < 0. {
         self.speed = 0.;
@@ -87,15 +90,18 @@ impl Plugin for CameraControllPlugin {
 fn update_camera_controller(
     mut mouse_motion_events: EventReader<MouseMotion>,
     mut mouse_wheel_events: EventReader<MouseWheel>,
+    preferences: Res<Preferences>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
     mut query: Query<(&mut CameraController, &mut Transform)>,
     time: Res<Time>,
 ) {
+    let preferences = &preferences.camera_controll;
     for (mut controller, mut transform) in query.iter_mut() {
         // Handle zoom with mouse wheel.
         for event in mouse_wheel_events.read() {
-            controller.distance -= event.y * ZOOM_SENSITIVITY;
-            controller.distance = controller.distance.clamp(MIN_DISTANCE, MAX_DISTANCE);
+            controller.distance -= event.y * preferences.zoom_sensitivity;
+            controller.distance = 
+                controller.distance.clamp(preferences.min_distance, preferences.max_distance);
         }
 
         // Update rotation and panning states based on mouse button input.
@@ -108,7 +114,7 @@ fn update_camera_controller(
             delta += event.delta;
         }
 
-        if INERTIA_ON { 
+        if preferences.inertia_on { 
           if mouse_button_input.just_pressed(MouseButton::Right) {
             controller.rotating_inertia.deplete();
             let seconds = time.elapsed().as_secs_f32();
@@ -128,21 +134,25 @@ fn update_camera_controller(
 
              let seconds_passed = seconds - controller.rotating_inertia.start_second;
 
-             controller.rotating_inertia.speed =
-                 rotated_distance / seconds_passed;
+             if seconds_passed != 0. {
+               controller.rotating_inertia.speed =
+                   rotated_distance / seconds_passed;
 
-             controller.rotating_inertia.direction = delta;
+               controller.rotating_inertia.direction = delta.normalize_or_zero();
+             }
           }
           if controller.rotating_inertia.is_present() {
-            let delta = controller.rotating_inertia.direction;
-            controller.rotate(delta);
-            controller.rotating_inertia.decrement();
+            let direction = controller.rotating_inertia.direction;
+            let speed = controller.rotating_inertia.speed;
+
+            controller.rotate(delta, preferences.rotation_sensitivity);
+            controller.rotating_inertia.decrement(preferences.inertia_decrement_speed);
           }
         }
 
         // Rotate the camera around the point of view.
         if controller.is_rotating {
-            controller.rotate(delta);
+            controller.rotate(delta, preferences.rotation_sensitivity);
         }
 
         // Pan the point of view.
@@ -153,8 +163,8 @@ fn update_camera_controller(
 
             let distance = controller.distance;
             // Adjust the point of view based on mouse movement.
-            controller.point_of_view -= (right * delta.x * PAN_SENSITIVITY
-                + up * delta.y * PAN_SENSITIVITY)
+            controller.point_of_view -= (right * delta.x * preferences.pan_sensitivity
+                + up * delta.y * preferences.pan_sensitivity)
                 * distance / 10.0;
         }
 
@@ -165,6 +175,17 @@ fn update_camera_controller(
         let offset = rotation * Vec3::new(0.0, 0.0, controller.distance);
 
         transform.translation = controller.point_of_view + offset;
+
         transform.look_at(controller.point_of_view, Vec3::Y);
+    }
+}
+
+fn apply_settings(
+    mut commands: Commands,
+    mut event: EventReader<ApplyPreferencesEvent>,
+    preferences: Res<Preferences>,
+) {
+    for _ in event.read() {
+       
     }
 }
