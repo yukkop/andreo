@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
-use bevy_editor_pls::prelude::*;
 
 /// Constants for controlling the camera sensitivity and limits.
 const ROTATION_SENSITIVITY: f32 = 0.005;
@@ -10,19 +9,22 @@ const MIN_DISTANCE: f32 = 1.0;
 const MAX_DISTANCE: f32 = 100.0;
 
 const INERTIA_ON: bool = true;
-const INERTIA_DECREMENT_SPEED: f32 = 0.005;
+const INERTIA_DECREMENT_SPEED: f32 = 0.02;
+
+#[derive(Component)]
+pub struct EditorCamera;
 
 /// Component to store the camera's control state.
 #[derive(Component, Default, Reflect)]
 #[reflect(Component)]
-struct CameraController {
-    distance: f32,
-    yaw: f32,
-    pitch: f32,
-    point_of_view: Vec3,
-    is_rotating: bool,
-    is_panning: bool,
-    rotating_inertia: InertiaRotation,
+pub struct CameraController {
+    pub distance: f32,
+    pub yaw: f32,
+    pub pitch: f32,
+    pub point_of_view: Vec3,
+    pub is_rotating: bool,
+    pub is_panning: bool,
+    pub rotating_inertia: InertiaRotation,
 }
 
 impl CameraController {
@@ -39,9 +41,11 @@ impl CameraController {
 struct InertiaRotation {
     speed: f32,
     direction: Vec2,
-    /// neccessary to count enertia affter action finish
+    /// neccessary to count inertia affter action finish
     start_second: f32,
+    /// neccessary to count inertia affter action finish
     start_yaw: f32,
+    /// neccessary to count inertia affter action finish
     start_pitch: f32,
 }
 
@@ -69,48 +73,14 @@ impl InertiaRotation {
   }
 }
 
-fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins)
-        .register_type::<CameraController>()
-        .add_systems(Startup, setup)
-        .add_systems(Update, update_camera_controller)
-        .add_plugins(EditorPlugin::default())
-        .run();
-}
+pub struct CameraControllPlugin;
 
-/// Setup the scene with a camera and some entities to view.
-fn setup(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    // Spawn a camera with the CameraController component.
-    commands.spawn((
-        Camera3dBundle {
-            transform: Transform::from_xyz(0.0, 0.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-            ..Default::default()
-        },
-        CameraController {
-            distance: 5.0,
-            yaw: 0.0,
-            pitch: 0.0,
-            point_of_view: Vec3::ZERO,
-            is_rotating: false,
-            is_panning: false,
-            ..default()
-        },
-    ));
-
-    // Optional: Add some entities to look at.
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Mesh::from(Cuboid::from_size(Vec3::splat(1.0)))),
-        material: materials.add(StandardMaterial {
-            base_color: Color::WHITE,
-            ..Default::default()
-        }),
-        ..Default::default()
-    });
+impl Plugin for CameraControllPlugin {
+  fn build(&self, app: &mut App) {
+    app
+      .register_type::<CameraController>()
+      .add_systems(Update, update_camera_controller);
+  }
 }
 
 /// System to update the camera based on user input.
@@ -156,8 +126,10 @@ fn update_camera_controller(
              // Calculate the rotated distance (Euclidean distance between two angles)
              let rotated_distance = (delta_yaw.powi(2) + delta_pitch.powi(2)).sqrt();
 
+             let seconds_passed = seconds - controller.rotating_inertia.start_second;
+
              controller.rotating_inertia.speed =
-                 rotated_distance / controller.rotating_inertia.start_second;
+                 rotated_distance / seconds_passed;
 
              controller.rotating_inertia.direction = delta;
           }
