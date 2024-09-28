@@ -146,6 +146,7 @@ dependencies = [
  "bevy_mod_picking",
  "derive",
  "egui",
+ "log",
  "num-traits",
  "serde",
  "serde_yaml",

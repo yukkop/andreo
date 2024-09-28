@@ -1,4 +1,4 @@
-use andreo::{core::LocationPlugin, preference::PreferencesPlugin, ui::UiPlugins, CM};
+use andreo::{core::LocationPlugin, input::InputPlugins, preference::PreferencesPlugin, ui::UiPlugins, CM};
 use bevy::prelude::*;
 use bevy_editor_pls::prelude::*;
 use bevy_egui::EguiPlugin;
@@ -10,7 +10,7 @@ fn mc(multiplier: f32) -> f32 {
 fn main() {
     App::new()
       .add_plugins((DefaultPlugins, EguiPlugin))
-      .add_plugins((PreferencesPlugin, UiPlugins))
+      .add_plugins((InputPlugins, PreferencesPlugin, UiPlugins))
       .add_plugins(LocationPlugin)
       .add_systems(Startup, (setup, init_plan))
       .run();

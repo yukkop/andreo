@@ -1,7 +1,6 @@
 #![allow(clippy::module_inception)]
 
-mod quickmenu;
 mod preferences;
-mod ui;
+mod camera_movement;
 
-pub use ui::*;
+pub use preferences::*;

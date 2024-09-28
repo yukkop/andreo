@@ -1,6 +1,8 @@
 use bevy::{prelude::*, window::PrimaryWindow};
 use bevy_egui::{EguiContext, EguiContexts, EguiPlugin};
 
+use crate::input::ExtendedButtonInput;
+
 #[derive(Resource)]
 struct ContextMenuState {
     show_menu: bool,
@@ -16,9 +18,9 @@ impl Default for ContextMenuState {
     }
 }
 
-pub struct PreferencesPlugin;
+pub struct CameraMovementPlugin;
 
-impl Plugin for PreferencesPlugin {
+impl Plugin for CameraMovementPlugin {
   fn build(&self, app: &mut App) {
     app
         .init_resource::<ContextMenuState>()
@@ -28,10 +30,10 @@ impl Plugin for PreferencesPlugin {
 
 fn right_click_system(
     mut context_menu_state: ResMut<ContextMenuState>,
-    mouse_button_input: Res<ButtonInput<MouseButton>>,
+    mouse_button_input: Res<ExtendedButtonInput>,
     mut q_windows: Query<&mut Window, With<PrimaryWindow>>,
 ) {
-    if mouse_button_input.just_pressed(MouseButton::Right) {
+    if mouse_button_input.clicked(MouseButton::Right) {
         let primary_window = q_windows.single_mut();
         if let Some(cursor_position) = primary_window.cursor_position() {
             let egui_position = egui::Pos2 {
