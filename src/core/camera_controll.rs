@@ -1,18 +1,9 @@
-use bevy::{log, prelude::*};
+use bevy::prelude::*;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 
 use crate::check_zero_warn;
+use crate::input::ExtendedButtonInput;
 use crate::preference::{ApplyPreferencesEvent, Preferences};
-
-/// Constants for controlling the camera sensitivity and limits.
-const ROTATION_SENSITIVITY: f32 = 0.005;
-const PAN_SENSITIVITY: f32 = 0.01;
-const ZOOM_SENSITIVITY: f32 = 0.5;
-const MIN_DISTANCE: f32 = 1.0;
-const MAX_DISTANCE: f32 = 150.0;
-
-const INERTIA_ON: bool = true;
-const INERTIA_DECREMENT_SPEED: f32 = 0.02;
 
 #[derive(Component)]
 pub struct EditorCamera;
@@ -92,6 +83,7 @@ fn update_camera_controller(
     mut mouse_wheel_events: EventReader<MouseWheel>,
     preferences: Res<Preferences>,
     mouse_button_input: Res<ButtonInput<MouseButton>>,
+    extra_mouse_button_input: Res<ExtendedButtonInput>,
     mut query: Query<(&mut CameraController, &mut Transform)>,
     time: Res<Time>,
 ) {
@@ -105,8 +97,8 @@ fn update_camera_controller(
         }
 
         // Update rotation and panning states based on mouse button input.
-        controller.is_rotating = mouse_button_input.pressed(MouseButton::Right);
-        controller.is_panning = mouse_button_input.pressed(MouseButton::Middle);
+        controller.is_rotating = extra_mouse_button_input.held(MouseButton::Right);
+        controller.is_panning = extra_mouse_button_input.held(MouseButton::Middle);
 
         // Calculate the total mouse movement since the last frame.
         let mut delta = Vec2::ZERO;

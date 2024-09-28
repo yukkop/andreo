@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use super::camera_movement::CameraMovementPlugin;
+use super::camera_controll::CameraMovementPlugin;
 
 pub struct PreferencesPlugins;
 
