@@ -1,6 +1,7 @@
 use super::preferences::PreferencesPlugins;
 use bevy::{prelude::*, window::PrimaryWindow};
 use bevy_egui::EguiContexts;
+use egui::Frame;
 
 use crate::{input::ExtendedButtonInput, rich_text};
 
@@ -65,8 +66,11 @@ fn ui_context_menu_system(
 ) {
     let ctx = contexts.ctx_mut();
 
+    const MARGIN: f32 = 6.0;
+
     let mut style = (*ctx.style()).clone();
     style.spacing.button_padding = egui::vec2(8.0, 4.0); // Adjust padding
+    style.spacing.window_margin = egui::Margin::same(MARGIN);
     style.visuals.widgets.hovered.bg_fill = egui::Color32::from_gray(200); // Hover color
 
     ctx.set_style(style);
@@ -94,27 +98,41 @@ fn ui_context_menu_system(
                 });
             });
 
-
         if let Some(window_rect) = window_response {
           let window_rect = window_rect.response.rect;
           let window_width = window_rect.width();
           let window_min_y = window_rect.min.y;
+          let submenu_width = MENU_WITDTH; // Assuming submenu width is MENU_WITDTH
+
+          // Get the screen rect
+          let screen_rect = ctx.input(|i| i.screen_rect);
+
           match context_menu_state.show_submenu { 
               Submenu::Preferences =>
               if let Some(preferences_rect) = preferences_button_rect {
-                  // Calculate the position for the submenu
-                  let submenu_position = 
-                      context_menu_state.position
-                      + egui::vec2(window_width,
-                      window_min_y - context_menu_state.position.y
-                  );
+                let mut submenu_position = window_rect.min
+                    + egui::vec2(window_width, window_min_y - window_rect.min.y);
+
+                // Check if the submenu would go off-screen to the right
+                if submenu_position.x + submenu_width > screen_rect.max.x {
+                    // Not enough space on the right, so place it to the left
+                    submenu_position = window_rect.min
+                        - egui::vec2(submenu_width + MARGIN * 2., 0.0);
+                    log::debug!("{submenu_position} = {}
+                        - egui::vec2({submenu_width} + {MARGIN}, 0.0)", window_rect.min);
+
+                    // Ensure the submenu does not go off-screen to the left
+                    if submenu_position.x < screen_rect.min.x {
+                        submenu_position.x = screen_rect.min.x;
+                    }
+                }
 
                   egui::Window::new("Preferences Menu")
                       .fixed_pos(submenu_position)
                       .collapsible(false)
                       .resizable(false)
                       .title_bar(false)
-                      .default_width(MENU_WITDTH)
+                      .default_width(submenu_width)
                       .show(ctx, |ui| {
                         ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
                           ui.label(rich_text!("Preference 1"));
