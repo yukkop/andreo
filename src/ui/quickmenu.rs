@@ -75,7 +75,7 @@ fn ui_context_menu_system(
         let mut preferences_button_rect = None;
 
 
-        egui::Window::new("Context Menu")
+        let window_response = egui::Window::new("Context Menu")
             .fixed_pos(context_menu_state.position)
             .collapsible(false)
             .resizable(false)
@@ -91,36 +91,39 @@ fn ui_context_menu_system(
                    }
                    // Store the rect of the "Preferences" button
                    preferences_button_rect = Some(preferences_button.rect);
-
-                   if ui.selectable_label(false, rich_text!("Close"))
-                       .clicked() {
-                       context_menu_state.show_menu = false;
-                   }
                 });
             });
 
-        // Display the second context menu if needed
-        match context_menu_state.show_submenu { 
-            Submenu::Preferences =>
-            if let Some(preferences_rect) = preferences_button_rect {
-                // Calculate the position for the submenu
-                let submenu_position = context_menu_state.position
-                    + egui::vec2(preferences_rect.width(), preferences_rect.min.y - context_menu_state.position.y);
 
-                egui::Window::new("Preferences Menu")
-                    .fixed_pos(submenu_position)
-                    .collapsible(false)
-                    .resizable(false)
-                    .title_bar(false)
-                    .show(ctx, |ui| {
-                        ui.label("Preference 1");
-                        ui.label("Preference 2");
-                        if ui.button("Back").clicked() {
-                            context_menu_state.show_submenu = Submenu::None;
-                        }
-                    });
-            },
-            Submenu::None => {}
+        if let Some(window_rect) = window_response {
+          let window_rect = window_rect.response.rect;
+          let window_width = window_rect.width();
+          let window_min_y = window_rect.min.y;
+          match context_menu_state.show_submenu { 
+              Submenu::Preferences =>
+              if let Some(preferences_rect) = preferences_button_rect {
+                  // Calculate the position for the submenu
+                  let submenu_position = 
+                      context_menu_state.position
+                      + egui::vec2(window_width,
+                      window_min_y - context_menu_state.position.y
+                  );
+
+                  egui::Window::new("Preferences Menu")
+                      .fixed_pos(submenu_position)
+                      .collapsible(false)
+                      .resizable(false)
+                      .title_bar(false)
+                      .default_width(MENU_WITDTH)
+                      .show(ctx, |ui| {
+                        ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
+                          ui.label(rich_text!("Preference 1"));
+                          ui.label(rich_text!("Preference 2"));
+                        });
+                      });
+              },
+              Submenu::None => {}
+          }
         }
 
         // Close the context menus if clicked elsewhere
@@ -130,4 +133,3 @@ fn ui_context_menu_system(
         }
     }
 }
-
