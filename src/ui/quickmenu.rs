@@ -1,32 +1,47 @@
 use super::preferences::PreferencesPlugins;
 use bevy::{prelude::*, window::PrimaryWindow};
 use bevy_egui::EguiContexts;
-use egui::Frame;
 
 use crate::{input::ExtendedButtonInput, rich_text};
 
-const MENU_WITDTH: f32 = 200.0;
+pub const MENU_WITDTH: f32 = 200.0;
+pub const MARGIN: egui::Margin = egui::Margin {
+    left: 6.,
+    right: 6.,
+    top: 6.,
+    bottom: 6.,
+};
 
-#[derive(Resource)]
-struct ContextMenuState {
-    show_menu: bool,
-    position: egui::Pos2,
-    show_submenu: Submenu,
-}
-
-#[derive(Default, PartialEq)]
-enum Submenu {
+#[derive(Default, Debug, Clone, Eq, PartialEq, Hash, States)]
+pub enum ContextMenuSubmenu {
     #[default]
-    None,
+    Closed,
     Preferences,
 }
 
-impl Default for ContextMenuState {
+#[derive(Resource)]
+pub struct ContextMenu {
+    show_menu: bool,
+    position: egui::Pos2,
+    rect: Option<egui::Rect>,
+}
+
+impl ContextMenu {
+    pub fn rect(&self) -> egui::Rect {
+        self.rect.unwrap()
+    }
+
+    pub fn get_rect(&self) -> Option<egui::Rect> {
+        self.rect
+    }
+}
+
+impl Default for ContextMenu {
     fn default() -> Self {
         Self {
             show_menu: false,
             position: egui::Pos2::ZERO,
-            show_submenu: Submenu::default(),
+            rect: None,
         }
     }
 }
@@ -35,14 +50,16 @@ pub struct QuickMenuPlugins;
 
 impl Plugin for QuickMenuPlugins {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ContextMenuState>()
+        app.init_resource::<ContextMenu>()
+            .insert_state(ContextMenuSubmenu::default())
+            .add_systems(Startup, setup_styles)
             .add_systems(Update, (right_click_system, ui_context_menu_system))
             .add_plugins(PreferencesPlugins);
     }
 }
 
 fn right_click_system(
-    mut context_menu_state: ResMut<ContextMenuState>,
+    mut context_menu: ResMut<ContextMenu>,
     mouse_button_input: Res<ExtendedButtonInput>,
     mut q_windows: Query<&mut Window, With<PrimaryWindow>>,
 ) {
@@ -54,100 +71,65 @@ fn right_click_system(
                 y: primary_window.height() - (primary_window.height() - cursor_position.y),
             };
 
-            context_menu_state.show_menu = true;
-            context_menu_state.position = egui_position;
+            context_menu.show_menu = true;
+            context_menu.position = egui_position;
         }
     }
 }
 
-fn ui_context_menu_system(
-    mut contexts: EguiContexts,
-    mut context_menu_state: ResMut<ContextMenuState>,
-) {
+fn setup_styles(mut contexts: EguiContexts) {
     let ctx = contexts.ctx_mut();
-
-    const MARGIN: f32 = 6.0;
 
     let mut style = (*ctx.style()).clone();
     style.spacing.button_padding = egui::vec2(8.0, 4.0); // Adjust padding
-    style.spacing.window_margin = egui::Margin::same(MARGIN);
-    style.visuals.widgets.hovered.bg_fill = egui::Color32::from_gray(200); // Hover color
+    style.spacing.window_margin = MARGIN;
+    //style.visuals.selection.bg_fill = egui::Color32::from_gray(200); 
+    style.visuals.selection.stroke.width = 0.; 
 
     ctx.set_style(style);
+}
 
-    if context_menu_state.show_menu {
+fn ui_context_menu_system(
+    mut contexts: EguiContexts,
+    mut context_menu: ResMut<ContextMenu>,
+    submenu_state: Res<State<ContextMenuSubmenu>>,
+    mut next_submenu_state: ResMut<NextState<ContextMenuSubmenu>>,
+) {
+    let ctx = contexts.ctx_mut();
+
+    use ContextMenuSubmenu::*;
+
+    if context_menu.show_menu {
         let mut preferences_button_rect = None;
 
-
         let window_response = egui::Window::new("Context Menu")
-            .fixed_pos(context_menu_state.position)
+            .fixed_pos(context_menu.position)
             .collapsible(false)
             .resizable(false)
             .title_bar(false)
             .default_width(MENU_WITDTH)
             .show(ctx, |ui| {
                 ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
-                   let preferences_button = ui.selectable_label(
-                       context_menu_state.show_submenu == Submenu::Preferences,
-                       rich_text!("Preferences"));
-                   if preferences_button.clicked() {
-                       context_menu_state.show_submenu = Submenu::Preferences;
-                   }
-                   // Store the rect of the "Preferences" button
-                   preferences_button_rect = Some(preferences_button.rect);
+                    let preferences_button = ui
+                        .selectable_label(*submenu_state == Preferences, rich_text!("Preferences"));
+                    if preferences_button.hovered() {
+                        next_submenu_state.set(Preferences);
+                    } 
+                    // Store the rect of the "Preferences" button
+                    preferences_button_rect = Some(preferences_button.rect);
                 });
             });
 
         if let Some(window_rect) = window_response {
-          let window_rect = window_rect.response.rect;
-          let window_width = window_rect.width();
-          let window_min_y = window_rect.min.y;
-          let submenu_width = MENU_WITDTH; // Assuming submenu width is MENU_WITDTH
-
-          // Get the screen rect
-          let screen_rect = ctx.input(|i| i.screen_rect);
-
-          match context_menu_state.show_submenu { 
-              Submenu::Preferences =>
-              if let Some(preferences_rect) = preferences_button_rect {
-                let mut submenu_position = window_rect.min
-                    + egui::vec2(window_width, window_min_y - window_rect.min.y);
-
-                // Check if the submenu would go off-screen to the right
-                if submenu_position.x + submenu_width > screen_rect.max.x {
-                    // Not enough space on the right, so place it to the left
-                    submenu_position = window_rect.min
-                        - egui::vec2(submenu_width + MARGIN * 2., 0.0);
-                    log::debug!("{submenu_position} = {}
-                        - egui::vec2({submenu_width} + {MARGIN}, 0.0)", window_rect.min);
-
-                    // Ensure the submenu does not go off-screen to the left
-                    if submenu_position.x < screen_rect.min.x {
-                        submenu_position.x = screen_rect.min.x;
-                    }
-                }
-
-                  egui::Window::new("Preferences Menu")
-                      .fixed_pos(submenu_position)
-                      .collapsible(false)
-                      .resizable(false)
-                      .title_bar(false)
-                      .default_width(submenu_width)
-                      .show(ctx, |ui| {
-                        ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
-                          ui.label(rich_text!("Preference 1"));
-                          ui.label(rich_text!("Preference 2"));
-                        });
-                      });
-              },
-              Submenu::None => {}
-          }
+            context_menu.rect = Some(window_rect.response.rect);
+        } else {
+            log::error!("window rect not found");
         }
 
         // Close the context menus if clicked elsewhere
         if ctx.input(|i| i.pointer.any_down()) && !ctx.is_pointer_over_area() {
-            context_menu_state.show_menu = false;
-            context_menu_state.show_submenu = Submenu::None;
+            context_menu.show_menu = false;
+            next_submenu_state.set(ContextMenuSubmenu::Closed);
         }
     }
 }
