@@ -87,6 +87,7 @@ fn setup_styles(mut contexts: EguiContexts) {
     style.visuals.selection.stroke.width = 0.; 
 
     ctx.set_style(style);
+    //ctx.set_debug_on_hover(true);
 }
 
 fn ui_context_menu_system(
