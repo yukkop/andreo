@@ -2,7 +2,7 @@ use bevy::{prelude::*, window::PrimaryWindow};
 use bevy_egui::{EguiContext, EguiContexts, EguiPlugin};
 
 use crate::{
-    preference::{ApplyPreferencesEvent, CameraControllPreferences, Preferences},
+    preference::{ApplyPreferencesEvent, CameraControllPreferences, ExemptPreferencesEvent, Preferences},
     rich_text,
     ui::quickmenu::{MARGIN, MENU_WITDTH},
 };
@@ -26,6 +26,8 @@ fn ui_context_menu_system(
     preferences_submenu_state: Res<State<PreferencesSubmenu>>,
     mut next_preferences_submenu_state: ResMut<NextState<PreferencesSubmenu>>,
     mut preferences: ResMut<Preferences>,
+    mut apply_event: EventWriter<ApplyPreferencesEvent>,
+    mut exempt_event: EventWriter<ExemptPreferencesEvent>,
 ) {
     let ctx = contexts.ctx_mut();
 
@@ -53,7 +55,7 @@ fn ui_context_menu_system(
         }
     }
 
-    let mut camera_prefs = &mut preferences.camera_controll; // CameraControllPreferences::default();
+    let camera_prefs = &mut preferences.camera_controll;
 
     egui::Window::new("Camera Controll Menu")
         .fixed_pos(submenu_position)
@@ -65,7 +67,7 @@ fn ui_context_menu_system(
             ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
                 ui.label(rich_text!("Rotation Sensitivity"));
                 ui.add(
-                    egui::Slider::new(&mut camera_prefs.rotation_sensitivity, 0.0..=10.0)
+                    egui::Slider::new(&mut camera_prefs.rotation_sensitivity, 0.0..=0.10)
                         .text(rich_text!("Rotation Sensitivity")),
                 );
 
@@ -101,21 +103,18 @@ fn ui_context_menu_system(
                         .text(rich_text!("Inertia Decrement Speed")),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::LEFT), |ui| {
-                    if ui.button(rich_text!("Apply")).clicked() {}
-                    if ui.button(rich_text!("Default")).clicked() {}
+                    if ui.button(rich_text!("Apply")).clicked() {
+                        apply_event.send(ApplyPreferencesEvent);
+                    }
+                    if ui.button(rich_text!("Default")).clicked() {
+                        *camera_prefs = CameraControllPreferences::default();
+                    }
                 });
             });
         });
 
     if ctx.input(|i| i.pointer.any_down()) && !ctx.is_pointer_over_area() {
+        exempt_event.send(ExemptPreferencesEvent);
         next_preferences_submenu_state.set(PreferencesSubmenu::Closed);
     }
-}
-
-fn apply_settings(
-    mut commands: Commands,
-    mut event: EventReader<ApplyPreferencesEvent>,
-    preferences: Res<Preferences>,
-) {
-    for _ in event.read() {}
 }

@@ -171,13 +171,3 @@ fn update_camera_controller(
         transform.look_at(controller.point_of_view, Vec3::Y);
     }
 }
-
-fn apply_settings(
-    mut commands: Commands,
-    mut event: EventReader<ApplyPreferencesEvent>,
-    preferences: Res<Preferences>,
-) {
-    for _ in event.read() {
-       
-    }
-}
