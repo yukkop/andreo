@@ -1,6 +1,6 @@
 #![allow(clippy::module_inception)]
 
-mod quickmenu;
+mod contmenu;
 mod preferences;
 mod ui;
 

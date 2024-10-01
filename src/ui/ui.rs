@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use bevy::prelude::*;
 
-use super::quickmenu::QuickMenuPlugins;
+use super::contmenu::ContmenuPlugins;
 
 pub struct UiPlugins;
 
 impl Plugin for UiPlugins {
   fn build(&self, app: &mut App) {
-    app.add_plugins(QuickMenuPlugins);
+    app.add_plugins(ContmenuPlugins);
   }
 }
 

@@ -2,43 +2,35 @@ use bevy::{prelude::*, window::PrimaryWindow};
 use bevy_egui::{EguiContext, EguiContexts, EguiPlugin};
 
 use crate::{
-    preference::{ApplyPreferencesEvent, CameraControllPreferences, ExemptPreferencesEvent, Preferences},
+    preference::{
+        ApplyPreferencesEvent, CameraControllPreferences, ExemptPreferencesEvent, Preferences,
+    },
     rich_text,
-    ui::quickmenu::{MARGIN, MENU_WITDTH},
+    ui::contmenu::{contmenu_window, Side, SubContmenu, DEFAULT_MENU_INNER_WIDTH, DEFAULT_MENU_WIDTH},
 };
 
 use super::{PreferencesMenu, PreferencesSubmenu};
 
-#[derive(Resource)]
-pub struct CameraControllMenu {
-    rect: Option<egui::Rect>,
-}
-
-impl Default for CameraControllMenu {
-    fn default() -> Self {
-        Self {
-            rect: None,
-        }
-    }
-}
+pub struct CameraControllMenu;
 
 pub struct CameraMovementPlugin;
 
 impl Plugin for CameraMovementPlugin {
     fn build(&self, app: &mut App) {
-        app
-           .init_resource::<CameraControllMenu>()
-           .add_systems(
-               Update,
-               ui_context_menu_system.run_if(in_state(PreferencesSubmenu::CameraContoll)),
-           );
+        app.init_resource::<SubContmenu<CameraControllMenu>>()
+            .add_systems(
+                Update,
+                ui_context_menu_system.run_if(in_state(PreferencesSubmenu::CameraContoll)),
+            );
     }
 }
 
 fn ui_context_menu_system(
     mut contexts: EguiContexts,
-    preferences_menu: Res<PreferencesMenu>,
-    mut camera_controll_menu: ResMut<CameraControllMenu>,
+    (mut camera_controll_menu, preferences_menu): (
+        ResMut<SubContmenu<CameraControllMenu>>,
+        Res<SubContmenu<PreferencesMenu>>,
+    ),
     mut next_preferences_submenu_state: ResMut<NextState<PreferencesSubmenu>>,
     mut preferences: ResMut<Preferences>,
     mut apply_event: EventWriter<ApplyPreferencesEvent>,
@@ -51,43 +43,33 @@ fn ui_context_menu_system(
     let preferences_width = preferences_rect.width();
     let preferences_min_y = preferences_rect.min.y;
     let screen_rect = ctx.input(|i| i.screen_rect);
-    let submenu_width = MENU_WITDTH; // Assuming submenu width is MENU_WITDTH
     let mut submenu_position = preferences_rect.min
         + egui::vec2(
             preferences_width,
             preferences_min_y - preferences_rect.min.y,
         );
 
-    let camera_controll_menu_width = if let Some(rect) = camera_controll_menu.rect {
-        rect.width()
-    } else {
-        MENU_WITDTH + MARGIN.left + MARGIN.right
-    };
+    let camera_controll_menu_width = camera_controll_menu.width();
 
     // Check if the submenu would go off-screen to the right
-    if submenu_position.x + submenu_width > screen_rect.max.x {
+    if submenu_position.x + camera_controll_menu_width > screen_rect.max.x {
         // Not enough space on the right, so place it to the left
         submenu_position =
-            preferences_rect.min - egui::vec2(
-                submenu_width + MARGIN.left + MARGIN.right +
-                camera_controll_menu_width,
-                0.0);
+            preferences_rect.min - egui::vec2(DEFAULT_MENU_WIDTH + camera_controll_menu_width, 0.0);
 
         // Ensure the submenu does not go off-screen to the left
         if submenu_position.x < screen_rect.min.x {
             submenu_position.x = screen_rect.min.x;
         }
+
+        // write that this menu appeared on left
+        camera_controll_menu.appeared(Side::Left);
     }
 
     let camera_prefs = &mut preferences.camera_controll;
 
-    let camera_controll_response = egui::Window::new("Camera Controll Menu")
-        .fixed_pos(submenu_position)
-        .collapsible(false)
-        .resizable(false)
-        .title_bar(false)
-        .default_width(submenu_width)
-        .show(ctx, |ui| {
+    let camera_controll_response =
+        contmenu_window("Camera Controll Menu", submenu_position).show(ctx, |ui| {
             ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
                 ui.label(rich_text!("Rotation Sensitivity"));
                 ui.add(
@@ -138,7 +120,7 @@ fn ui_context_menu_system(
         });
 
     if let Some(camera_controll_response) = camera_controll_response {
-        camera_controll_menu.rect = Some(camera_controll_response.response.rect);
+        camera_controll_menu.set_rect(camera_controll_response.response.rect);
     } else {
         log::error!("window rect not found");
     }
